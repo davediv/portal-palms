@@ -130,6 +130,11 @@ def hands_hint(t: Text, s: ShapeRenderer, phase: float, one_hand: bool) -> None:
     """The empty state. There is never a blank screen in this app."""
     y = 0.795
     pulse = 0.6 + 0.4 * math.sin(phase * 2.6)
+    # Backed, not just scrimmed. Behind this is whatever the room is, and a
+    # white wall or a bright shirt swallows off-white type outright.
+    inv_h = 1.0 / C.RENDER_H
+    hh = (px(PX_TITLE * 0.72) * 1.06 + px(PX_META) * 2.1) * 0.5 * inv_h
+    s.rect(0.5, y + hh, column() * 0.92, hh + 0.012, (0.02, 0.03, 0.055), 0.55, 0.020)
     if one_hand:
         t.add("ONE MORE HAND", t.display, 0.5, y, px(PX_TITLE * 0.72), YELLOW, pulse, ALIGN_CENTER,
               -0.01)  # fmt: skip
@@ -146,6 +151,8 @@ def pull_hint(t: Text, s: ShapeRenderer, openness: float) -> None:
     a = (1.0 - openness) * 0.85
     if a < 0.03:
         return
+    hh = px(PX_LEAD) * 0.72 / C.RENDER_H
+    s.rect(0.5, 0.845 + hh, column() * 0.55, hh + 0.010, (0.02, 0.03, 0.055), 0.5 * a, 0.018)
     t.add("PULL THEM APART", t.bodybold, 0.5, 0.845, px(PX_LEAD), GREEN, a, ALIGN_CENTER, 0.10)
 
 

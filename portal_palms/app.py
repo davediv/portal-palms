@@ -470,6 +470,14 @@ class App:
             )
             G.set_frame_aspect(tracker.cam_w, tracker.cam_h)
             self._fit_camera(tracker.cam_w, tracker.cam_h)
+            if self.cam_tex.size != (tracker.cam_w, tracker.cam_h):
+                # The device did not give us what we asked for. One-time
+                # reallocation, before the first frame that uses it.
+                self.cam_tex.release()
+                self.cam_tex = self.ctx.texture((tracker.cam_w, tracker.cam_h), 3)
+                self.cam_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
+                self.cam_tex.repeat_x = False
+                self.cam_tex.repeat_y = False
 
         self.hands.update(tracker, now)
         if self.first_tracked_at <= 0.0 and self.hands.any_hand:
@@ -588,6 +596,12 @@ class App:
             stime = self.scene_time if g.phase is G.PortalPhase.LOCKED else 0.0
             sc.paint(self.scene.painter, stime % loop)
             calls += self.scene.render(sc.tint, stime, par_x * 9.0, par_y * 9.0)
+
+        # Upload the frame the tracker just published. Gated on frame_dirty so
+        # this runs at camera rate (30Hz), not display rate -- re-uploading the
+        # same 900KB every frame would be pure waste.
+        if self.hands.frame_dirty and self.hands.rgb is not None:
+            self.cam_tex.write(self.hands.rgb)
 
         self._clear_main()
         self.cam_tex.use(0)

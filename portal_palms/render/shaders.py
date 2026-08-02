@@ -133,11 +133,12 @@ void main(){
     // Cool the plate down and drop its contrast so the portal reads as the
     // only light source in the room.
     float lum = dot(col, vec3(0.299, 0.587, 0.114));
-    col = mix(vec3(lum), col, 0.72);
+    col = mix(vec3(lum), col, 0.85);
     // u_dim sinks the plate further toward base while the word card is up, so
-    // the example sentence stays readable over a moving room.
-    col = mix(BASE, col, 0.80 * u_dim);
-    col *= 0.92;
+    // the example sentence stays readable over a moving room. Held fairly high
+    // the rest of the time: the person has to stay clearly visible, that is the
+    // whole point of a mirror.
+    col = mix(BASE, col, 0.86 * u_dim);
 
     // Only fade the axis that actually has a bar against it.
     float fade = 1.0;
@@ -146,10 +147,17 @@ void main(){
     col = mix(BASE, col, fade);
   }
 
+  // Scrims. Text is anchored to the top and bottom edges, and behind it is
+  // whatever the room happens to be -- a white wall and a bright shirt will
+  // swallow off-white type. Darkening those bands is what guarantees the copy
+  // is legible no matter what the camera sees.
+  col *= 1.0 - 0.62 * smoothstep(0.40, 0.0, v_uv.y);
+  col *= 1.0 - 0.40 * smoothstep(0.90, 1.0, v_uv.y);
+
   // Vignette, and a faint paddy-green cast in the corners so the dark areas are
   // not dead flat on a phone camera filming the screen.
   vec2 d = v_uv - 0.5;
-  float vig = 1.0 - dot(d, d) * 0.85;
+  float vig = 1.0 - dot(d, d) * 0.70;
   col *= vig;
   col += GREEN * 0.012 * (1.0 - vig);
 
