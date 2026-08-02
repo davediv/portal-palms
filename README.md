@@ -36,22 +36,29 @@ uv run python main.py --check       # verify assets and the word deck, then exit
 
 ### Window shape
 
-The app composes into a **1080x1920 vertical frame** by default, because that is
-the shape the recorded clips need to be. On a landscape desktop that pillarboxes
-— maximising makes it taller, not wider, and you get a phone-shaped strip.
+**The composition follows your display.** On a landscape monitor the app
+composes 1920x1080 and a maximised window fills the screen; on a portrait one it
+composes 1080x1920.
 
-For desk use, compose landscape instead:
+That default exists because a 9:16 composition on a 16:9 monitor can only ever
+pillarbox — maximising makes it taller and never wider, and you get a
+phone-shaped strip down the middle of your desktop.
+
+The vertical format is still one flag away, and it is the one to use when the
+clip shape matters:
 
 ```bash
-uv run python main.py --landscape              # 1920x1080, fills a desktop
-uv run python main.py --landscape --fullscreen # and start fullscreen
+uv run python main.py --portrait               # 1080x1920, vertical clips
+uv run python main.py --landscape              # force 1920x1080
 uv run python main.py --size 1440x1440         # or any shape you like
+uv run python main.py --fullscreen             # start fullscreen
 ```
 
-<kbd>f</kbd> toggles fullscreen at any time. The whole UI reflows: type scales
-with the frame, the content column narrows to a readable measure on wide
-screens, and the camera plate letterboxes on whichever axis binds. Recording
-follows the composition, so `--landscape` records landscape clips.
+<kbd>f</kbd> toggles fullscreen at any time. The whole UI reflows rather than
+stretching: type scales with the frame, the content column narrows to a readable
+measure on wide screens, the word card measures its own type and sizes its panel
+to fit, and the camera plate letterboxes on whichever axis binds. Recording
+follows the composition, so `--portrait` is what gives you vertical clips.
 
 ### Gestures
 

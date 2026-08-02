@@ -20,10 +20,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--width", type=int, default=600, help="window width")
     p.add_argument("--height", type=int, default=1000, help="window height")
     p.add_argument(
-        "--landscape",
+        "--portrait",
         action="store_true",
-        help="compose 1920x1080 so a maximised window fills a desktop screen",
+        help="compose 1080x1920 for vertical clips (default follows your display)",
     )
+    p.add_argument("--landscape", action="store_true", help="force 1920x1080")
     p.add_argument(
         "--size",
         default="",
@@ -79,8 +80,30 @@ def check() -> int:
     return 0 if ok else 1
 
 
+def _display_is_landscape() -> bool:
+    """Ask GLFW about the primary monitor. Falls back to portrait if it cannot."""
+    try:
+        import glfw
+
+        if not glfw.init():
+            return False
+        mode = glfw.get_video_mode(glfw.get_primary_monitor())
+    except Exception:  # a missing or odd monitor must not stop startup
+        return False
+    # Left initialised on purpose: Window() calls glfw.init() again, which is
+    # idempotent, and terminating here would throw away what we just queried.
+    return bool(mode) and mode.size.width >= mode.size.height
+
+
 def _apply_size(args: argparse.Namespace) -> None:
-    """Set the composition size before anything reads it."""
+    """Fix the composition size before anything reads it.
+
+    Default follows the display. The app is designed vertical -- that is the
+    shape the recorded clips want -- but on a landscape monitor a 9:16
+    composition can only ever pillarbox, so maximising makes it taller and never
+    wider. Matching the screen is what someone running a desktop app expects;
+    `--portrait` is one flag away when the clip shape matters.
+    """
     from portal_palms import config as C
 
     if args.size:
@@ -88,10 +111,12 @@ def _apply_size(args: argparse.Namespace) -> None:
             w, h = (int(v) for v in args.size.lower().split("x", 1))
         except ValueError:
             raise SystemExit(f"--size wants WxH, got {args.size!r}") from None
-    elif args.landscape:
+    elif args.portrait:
+        w, h = 1080, 1920
+    elif args.landscape or _display_is_landscape():
         w, h = 1920, 1080
     else:
-        return
+        w, h = 1080, 1920
     C.set_render_size(w, h)
     # Match the window to it, unless the user asked for a specific window size.
     if args.width == 600 and args.height == 1000:
