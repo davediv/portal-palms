@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Tooling caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Build output
+build/
+dist/
+
+# Dev scratch
+shots/
+*.png
+!assets/fonts/atlas_preview.png

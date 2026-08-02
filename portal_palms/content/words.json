@@ -1,0 +1,209 @@
+{
+  "_comment": "Swap this file (or pass --words yourfile.json) to change the deck. 'scene' must name a metaphor in portal_palms/content/metaphors.py; a word with an unknown scene is skipped with a warning at startup.",
+  "words": [
+    {
+      "word": "regret",
+      "pos": "noun / verb",
+      "example": "I still regret not saying anything that night.",
+      "scene": "regret"
+    },
+    {
+      "word": "curiosity",
+      "pos": "noun",
+      "example": "Curiosity got the better of me, so I opened it.",
+      "scene": "curiosity"
+    },
+    {
+      "word": "deadline",
+      "pos": "noun",
+      "example": "The deadline is Friday and I have not started.",
+      "scene": "deadline"
+    },
+    {
+      "word": "overwhelmed",
+      "pos": "adjective",
+      "example": "I felt overwhelmed the second I opened my laptop.",
+      "scene": "overwhelmed"
+    },
+    {
+      "word": "hesitate",
+      "pos": "verb",
+      "example": "Do not hesitate to text me if you need anything.",
+      "scene": "hesitate"
+    },
+    {
+      "word": "procrastinate",
+      "pos": "verb",
+      "example": "I procrastinate the most when the task actually matters.",
+      "scene": "procrastinate"
+    },
+    {
+      "word": "nostalgia",
+      "pos": "noun",
+      "example": "That song hits me with so much nostalgia.",
+      "scene": "nostalgia"
+    },
+    {
+      "word": "resent",
+      "pos": "verb",
+      "example": "She started to resent him for never asking how she was.",
+      "scene": "resent"
+    },
+    {
+      "word": "cope",
+      "pos": "verb",
+      "example": "I am coping, but only just.",
+      "scene": "cope"
+    },
+    {
+      "word": "relieved",
+      "pos": "adjective",
+      "example": "I was so relieved when they said the test was cancelled.",
+      "scene": "relieved"
+    },
+    {
+      "word": "reluctant",
+      "pos": "adjective",
+      "example": "He was reluctant to go, but he came anyway.",
+      "scene": "reluctant"
+    },
+    {
+      "word": "anticipate",
+      "pos": "verb",
+      "example": "I did not anticipate how hard the first week would be.",
+      "scene": "anticipate"
+    },
+    {
+      "word": "dread",
+      "pos": "noun / verb",
+      "example": "I dread checking my email on Monday morning.",
+      "scene": "dread"
+    },
+    {
+      "word": "envy",
+      "pos": "noun / verb",
+      "example": "I envy how easily she talks to strangers.",
+      "scene": "envy"
+    },
+    {
+      "word": "spite",
+      "pos": "noun",
+      "example": "He deleted the whole thing out of spite.",
+      "scene": "spite"
+    },
+    {
+      "word": "vulnerable",
+      "pos": "adjective",
+      "example": "It takes guts to be vulnerable in front of people.",
+      "scene": "vulnerable"
+    },
+    {
+      "word": "resilient",
+      "pos": "adjective",
+      "example": "Kids are more resilient than we give them credit for.",
+      "scene": "resilient"
+    },
+    {
+      "word": "overthink",
+      "pos": "verb",
+      "example": "Stop overthinking it and just send the message.",
+      "scene": "overthink"
+    },
+    {
+      "word": "burnout",
+      "pos": "noun",
+      "example": "Three months in, burnout hit me hard.",
+      "scene": "burnout"
+    },
+    {
+      "word": "homesick",
+      "pos": "adjective",
+      "example": "I get homesick around dinner time, mostly.",
+      "scene": "homesick"
+    },
+    {
+      "word": "awkward",
+      "pos": "adjective",
+      "example": "We both went the same way and it got so awkward.",
+      "scene": "awkward"
+    },
+    {
+      "word": "grateful",
+      "pos": "adjective",
+      "example": "I am really grateful you waited for me.",
+      "scene": "grateful"
+    },
+    {
+      "word": "petty",
+      "pos": "adjective",
+      "example": "I know it is petty, but he did not say thank you.",
+      "scene": "petty"
+    },
+    {
+      "word": "commitment",
+      "pos": "noun",
+      "example": "Moving here was a real commitment.",
+      "scene": "commitment"
+    },
+    {
+      "word": "distracted",
+      "pos": "adjective",
+      "example": "Sorry, I was distracted. Say that again?",
+      "scene": "distracted"
+    },
+    {
+      "word": "accountable",
+      "pos": "adjective",
+      "example": "He held himself accountable without anyone asking.",
+      "scene": "accountable"
+    },
+    {
+      "word": "tempting",
+      "pos": "adjective",
+      "example": "It is tempting to skip class when it rains like this.",
+      "scene": "tempting"
+    },
+    {
+      "word": "exhausted",
+      "pos": "adjective",
+      "example": "I am exhausted and it is only Tuesday.",
+      "scene": "exhausted"
+    },
+    {
+      "word": "skeptical",
+      "pos": "adjective",
+      "example": "I am skeptical that this will actually work.",
+      "scene": "skeptical"
+    },
+    {
+      "word": "impatient",
+      "pos": "adjective",
+      "example": "I get impatient waiting for anything to load.",
+      "scene": "impatient"
+    },
+    {
+      "word": "stubborn",
+      "pos": "adjective",
+      "example": "My dad is too stubborn to ask for directions.",
+      "scene": "stubborn"
+    },
+    {
+      "word": "assume",
+      "pos": "verb",
+      "example": "Do not assume she is fine just because she is quiet.",
+      "scene": "assume"
+    },
+    {
+      "word": "bittersweet",
+      "pos": "adjective",
+      "example": "The last night of camp is always bittersweet.",
+      "scene": "bittersweet"
+    },
+    {
+      "word": "belong",
+      "pos": "verb",
+      "example": "It took a month before I felt like I belonged here.",
+      "scene": "belong"
+    }
+  ]
+}
