@@ -597,6 +597,10 @@ class App:
             sc.paint(self.scene.painter, stime % loop)
             calls += self.scene.render(sc.tint, stime, par_x * 9.0, par_y * 9.0)
 
+        portal_visible = g.is_open or g.openness > 0.0 or self.hands.both
+        if portal_visible:
+            calls += self.portal.update_signals(t)
+
         # Upload the frame the tracker just published. Gated on frame_dirty so
         # this runs at camera rate (30Hz), not display rate -- re-uploading the
         # same 900KB every frame would be pure waste.
@@ -613,7 +617,7 @@ class App:
         ctx.enable(moderngl.BLEND)
         ctx.blend_func = (moderngl.ONE, moderngl.ONE_MINUS_SRC_ALPHA)
 
-        if g.is_open or g.openness > 0.0 or self.hands.both:
+        if portal_visible:
             self.targets.scene_tex.use(0)
             self.portal.set_shape(cx, cy_gl, g.radius * self.fit_x * 2.0, g.openness, rot)
             self.portal.draw(t, g.openness, intensity, g.hold_progress)

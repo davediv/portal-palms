@@ -142,8 +142,8 @@ The frame budget is 16.6ms and it outranks everything else here. On an M1 at
 GPU-synced each frame so the number is honest:
 
 ```
-mean 4.5ms   p95 7.0ms   p99 7.6ms   max 11.6ms   over budget 0 / 1140 frames
-13 draw calls    RSS flat at 153MB after 20s
+mean 3.9ms   p95 5.4ms   p99 6.2ms   max 7.8ms   over budget 0 / 1140 frames
+15 draw calls    peak RSS 149MB over the 1140-frame run
 ```
 
 Cold start, measured on the packaged build:
@@ -157,7 +157,7 @@ than argparse is imported at module scope, and every expensive init step draws
 an explainer frame between the ones before and after it. MediaPipe imports on a
 side thread behind that screen.
 
-Five decisions do most of that work.
+Six decisions do most of that work.
 
 **Detection is decoupled from rendering.** Capture and MediaPipe inference run
 on a worker thread at camera rate; the render loop owns the main thread and runs
@@ -178,6 +178,13 @@ land inside a frame. The HUD formats numbers into a reused character buffer
 rather than f-strings. `tests/test_no_alloc.py` asserts this rather than
 claiming it: it runs the gesture machine, the One-Euro filter and all 34 scenes
 for 1500 frames and requires the live tracked-object count not to move.
+
+**Rim noise is evaluated once per angle.** Six animated signals define the
+torn edge, but their values do not change along a radial line. A 512x1 prepass
+computes those signals once, then the portal shader samples the strip instead
+of repeating the same simplex-noise work for every fragment from the interior
+to the outer halo. The two half-float targets cost 8KB and remove the dominant
+GPU bottleneck without turning the organic edge into a repeating flipbook.
 
 **Particles live on the GPU**, moved by transform feedback between paired VBOs
 and drawn as one instanced call. Transform feedback rather than compute shaders

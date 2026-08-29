@@ -1,11 +1,11 @@
 """The portal itself: torn rim, masked interior, and the sparks it sheds.
 
 The rim is the entire visual identity of the app, so it gets the whole budget
-that a post stack would otherwise eat. It is one draw call over a quad sized to
-the rim's real footprint, and everything -- the tear, the filament, the outward
-sparks, the interior mask, the glow -- comes out of that single fragment shader.
-Premultiplied output is what lets one pass be both opaque (interior) and
-additive (glow) at the same time.
+that a post stack would otherwise eat. A tiny 512x1 pass evaluates its
+angle-only noise once, then one draw over a tightly bounded quad produces the
+tear, filament, outward sparks, interior mask and glow. Premultiplied output is
+what lets that main pass be both opaque (interior) and additive (glow) at the
+same time.
 """
 
 from __future__ import annotations
@@ -31,13 +31,35 @@ MINOR_CLOSED = 0.035
 MINOR_OPEN = 0.70
 # Even with the wrists touching there should be a visible seam of light.
 MIN_MAJOR = 0.075
+# More than seven samples across the highest-frequency angular signal. The
+# strip is tiny (8 KiB across both half-float targets) but removes millions of
+# duplicate simplex-noise evaluations from a large open portal.
+RIM_SIGNAL_SAMPLES = 512
 
 
 class PortalRenderer:
     def __init__(self, ctx: moderngl.Context) -> None:
         self.ctx = ctx
+        self.signal_prog = ctx.program(
+            vertex_shader=S.FULLSCREEN_VS, fragment_shader=S.RIM_SIGNAL_FS
+        )
+        self.signal_tex = [
+            ctx.texture((RIM_SIGNAL_SAMPLES, 1), 4, dtype="f2"),
+            ctx.texture((RIM_SIGNAL_SAMPLES, 1), 4, dtype="f2"),
+        ]
+        for tex in self.signal_tex:
+            tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
+            tex.repeat_x = True
+            tex.repeat_y = False
+        self.signal_fbo = ctx.framebuffer(self.signal_tex)
+        self.signal_vao = ctx.vertex_array(self.signal_prog, [])
+        self.signal_vao.vertices = 3
+        self.u_signal_time = uniform(self.signal_prog, "u_time")
+
         self.prog = ctx.program(vertex_shader=S.PORTAL_VS, fragment_shader=S.PORTAL_FS)
         set_uniform(self.prog, "u_scene", 0)
+        set_uniform(self.prog, "u_signal0", 1)
+        set_uniform(self.prog, "u_signal1", 2)
         set_uniform(self.prog, "u_aspect", C.RENDER_H / C.RENDER_W)
         self.vao = ctx.vertex_array(self.prog, [])
         self.vao.vertices = 4
@@ -66,11 +88,23 @@ class PortalRenderer:
         self._par_y = 0.0
 
     def warm(self, target: moderngl.Framebuffer, scene_tex: moderngl.Texture) -> None:
+        self.update_signals(0.0)
         target.use()
         self.ctx.viewport = (0, 0, 4, 4)
+        self.ctx.enable(moderngl.BLEND)
+        self.ctx.blend_func = (moderngl.ONE, moderngl.ONE_MINUS_SRC_ALPHA)
         scene_tex.use(0)
         self.set_shape(0.5, 0.5, 0.2, 0.5, 0.0)
         self.draw(0.0, 0.5, 1.0, 0.0)
+
+    def update_signals(self, t: float) -> int:
+        """Evaluate the rim's angle-only noise once for this frame."""
+        self.signal_fbo.use()
+        self.ctx.viewport = (0, 0, RIM_SIGNAL_SAMPLES, 1)
+        self.ctx.disable(moderngl.BLEND | moderngl.DEPTH_TEST)
+        self.u_signal_time.value = t
+        self.signal_vao.render(moderngl.TRIANGLES, vertices=3)
+        return 1
 
     # ------------------------------------------------------------------ shape
 
@@ -141,11 +175,18 @@ class PortalRenderer:
         self.u_charge.value = charge
         self.u_flash.value = self.flash
         self.u_parallax.value = (self._par_x, self._par_y)
+        self.signal_tex[0].use(1)
+        self.signal_tex[1].use(2)
         self.vao.render(moderngl.TRIANGLE_STRIP, vertices=4)
 
     def release(self) -> None:
         self.vao.release()
         self.prog.release()
+        self.signal_vao.release()
+        self.signal_fbo.release()
+        for tex in self.signal_tex:
+            tex.release()
+        self.signal_prog.release()
 
 
 class ParticleSystem:

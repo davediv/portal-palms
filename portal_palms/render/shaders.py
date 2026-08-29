@@ -190,6 +190,67 @@ void main(){
 """
 )
 
+RIM_SIGNAL_FS: Final = (
+    VERSION
+    + NOISE
+    + """
+in vec2 v_uv;
+layout(location = 0) out vec4 f_signal0;
+layout(location = 1) out vec4 f_signal1;
+
+uniform float u_time;
+
+float fbm_ring(vec2 dir, float t, float base_freq){
+  float sum = 0.0;
+  float amp = 1.0;
+  float freq = base_freq;
+  float norm = 0.0;
+  for (int i = 0; i < 3; ++i){
+    sum  += snoise(vec3(dir * freq, t)) * amp;
+    norm += amp;
+    amp  *= 0.5;
+    freq *= 2.31;
+    t    *= 1.9;
+  }
+  return sum / norm;
+}
+
+void main(){
+  // Every expensive signal here varies with angle and time, never radius. The
+  // portal pass samples this strip along radial lines instead of recalculating
+  // the same simplex noise hundreds of times per angle.
+  float angle = (v_uv.x - 0.5) * 6.28318530718;
+  vec2 dir = vec2(cos(angle), sin(angle));
+  float t = u_time;
+
+  vec2 warp = vec2(snoise(vec3(dir * 1.7, t * 0.31)),
+                   snoise(vec3(dir * 1.7 + 5.2, t * 0.31)));
+  vec2 wdir = dir + warp * 0.35;
+
+  float big   = fbm_ring(wdir, t * 0.33, 1.9);
+  float mid   = snoise(vec3(wdir * 6.1, t * 0.95));
+  float fine  = snoise(vec3(dir  * 15.0, t * 2.4));
+  float crack = snoise(vec3(dir  * 34.0, t * 5.1));
+  float tear = big * 0.205 + mid * 0.070 + fine * 0.024 + crack * 0.008;
+
+  float amp = 0.22 + 1.05 * (0.5 + 0.5 * snoise(vec3(dir * 3.7, t * 1.15)));
+  float gap = smoothstep(0.62, 0.30, snoise(vec3(dir * 7.3 + 31.0, t * 0.85)));
+  amp *= mix(0.10, 1.0, gap);
+
+  float tear2 = snoise(vec3(wdir * 3.3 + 11.0, t * 0.51)) * 0.11
+              + snoise(vec3(dir * 9.7 + 4.0,  t * 1.7))  * 0.035;
+  float core2_mask = smoothstep(
+    0.15, 0.75, snoise(vec3(dir * 5.1 + 60.0, t * 0.7)) * 0.5 + 0.5
+  );
+  float slick = smoothstep(0.10, 0.95, snoise(vec3(dir * 8.0, t * 1.5)));
+  float flick = 0.45 + 0.55 * (0.5 + 0.5 * snoise(vec3(dir * 24.0, t * 6.5)));
+
+  f_signal0 = vec4(tear, amp, tear2, core2_mask);
+  f_signal1 = vec4(slick, flick, 0.0, 0.0);
+}
+"""
+)
+
 PORTAL_FS: Final = (
     VERSION
     + NOISE
@@ -214,22 +275,8 @@ uniform float u_pxscale;    // render width in pixels
 uniform float u_scale01;    // portal size relative to a nominal open portal
 uniform float u_scene_aspect;
 uniform float u_zoom;
-
-float fbm_ring(vec2 dir, float t, float base_freq, int octaves){
-  float sum = 0.0;
-  float amp = 1.0;
-  float freq = base_freq;
-  float norm = 0.0;
-  for (int i = 0; i < 4; ++i){
-    if (i >= octaves) break;
-    sum  += snoise(vec3(dir * freq, t)) * amp;
-    norm += amp;
-    amp  *= 0.5;
-    freq *= 2.31;
-    t    *= 1.9;
-  }
-  return sum / max(norm, 1e-4);
-}
+uniform sampler2D u_signal0;
+uniform sampler2D u_signal1;
 
 void main(){
   // ---- portal space: rotate, then divide by the two radii so r == 1 is the rim
@@ -244,21 +291,12 @@ void main(){
 
   vec2 dir = q / max(r, 1e-5);          // wraps seamlessly, unlike raw atan2
 
-  // ---- the tear: displace the boundary with layered animated noise
+  // ---- the tear: displace the boundary with the precomputed angular signals
   float t = u_time;
-  // A domain warp before the main octaves is what turns a wobbling circle into
-  // something that looks ripped rather than drawn.
-  vec2 warp = vec2(snoise(vec3(dir * 1.7, t * 0.31)), snoise(vec3(dir * 1.7 + 5.2, t * 0.31)));
-  vec2 wdir = dir + warp * 0.35;
-
-  float big   = fbm_ring(wdir, t * 0.33, 1.9, 3);
-  float mid   = snoise(vec3(wdir * 6.1, t * 0.95));
-  float fine  = snoise(vec3(dir  * 15.0, t * 2.4));
-  float crack = snoise(vec3(dir  * 34.0, t * 5.1));
-
-  // Weighted toward the low octaves: big irregular bites out of the silhouette
-  // read as torn, while piling on high frequency only reads as electrical buzz.
-  float tear = big * 0.205 + mid * 0.070 + fine * 0.024 + crack * 0.008;
+  float angle_u = atan(dir.y, dir.x) * 0.15915494309 + 0.5;
+  vec4 signal0 = texture(u_signal0, vec2(angle_u, 0.5));
+  vec2 signal1 = texture(u_signal1, vec2(angle_u, 0.5)).rg;
+  float tear = signal0.x;
   // A closed seam is a tight bright line; the tear only ragged-ises as it opens.
   tear *= mix(0.30, 1.0, u_open) * u_intensity;
   // Charging pulls the edge taut and makes it breathe faster the closer it gets.
@@ -284,10 +322,7 @@ void main(){
   float edge_band = 180.0 * sizef;
   if (abs(sd_px) < edge_band) {
     // ---- the filament: bright, thin, and unevenly lit along its length
-    float amp = 0.22 + 1.05 * (0.5 + 0.5 * snoise(vec3(dir * 3.7, t * 1.15)));
-    // Occasional burn-through gaps, so the edge is broken rather than continuous.
-    float gap = smoothstep(0.62, 0.30, snoise(vec3(dir * 7.3 + 31.0, t * 0.85)));
-    amp *= mix(0.10, 1.0, gap);
+    float amp = signal0.y;
 
     float w = (2.6 + 2.4 * u_charge) * sizef;
     float k = sd_px / w;
@@ -295,14 +330,11 @@ void main(){
 
     // A second filament at a slightly different radius reads as another layer
     // of ripped material behind the first.
-    float tear2 = snoise(vec3(wdir * 3.3 + 11.0, t * 0.51)) * 0.11
-                + snoise(vec3(dir * 9.7 + 4.0,  t * 1.7))  * 0.035;
+    float tear2 = signal0.z;
     float sd2_px = (r - 1.0 - tear2 * mix(0.30, 1.0, u_open))
                  * u_pxscale / max(gr, 1e-4);
     float k2 = sd2_px / (w * 1.7);
-    core2 = exp(-k2 * k2) * amp * 0.45
-          * smoothstep(0.15, 0.75,
-                       snoise(vec3(dir * 5.1 + 60.0, t * 0.7)) * 0.5 + 0.5);
+    core2 = exp(-k2 * k2) * amp * 0.45 * signal0.w;
 
     halo = exp(-abs(sd_px) / (22.0 * sizef)) * (0.35 + 0.65 * amp);
   }
@@ -311,8 +343,8 @@ void main(){
   float spark_px = 1.0;
   float sparks = 0.0;
   if (sd_px > -1.0 && r < 1.82) {
-    float slick = smoothstep(0.10, 0.95, snoise(vec3(dir * 8.0, t * 1.5)));
-    float flick = 0.45 + 0.55 * (0.5 + 0.5 * snoise(vec3(dir * 24.0, t * 6.5)));
+    float slick = signal1.x;
+    float flick = signal1.y;
     spark_px = (8.0 + 46.0 * slick) * sizef * u_intensity;
     float outside = smoothstep(-1.0, 3.0, sd_px);
     sparks = exp(-max(sd_px, 0.0) / max(spark_px, 1e-3)) * slick * flick * outside;
