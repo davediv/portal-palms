@@ -277,6 +277,8 @@ class HandTracker:
 
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
+        self._capture_requested = threading.Event()
+        self._prepared = threading.Event()
         self._cap: Any = None
         self._landmarker: Any = None
         self._filter: OneEuroFilter | None = None
@@ -294,13 +296,29 @@ class HandTracker:
 
     # ------------------------------------------------------------------ lifecycle
 
-    def start(self, on_ready: Callable[[], None] | None = None) -> None:
-        self._on_ready = on_ready
+    @property
+    def model_prepared(self) -> bool:
+        return self._prepared.is_set()
+
+    def prepare(self) -> None:
+        """Build the model early without touching the camera.
+
+        The worker that constructs the MediaPipe task remains the inference
+        worker, avoiding thread-affinity surprises in native delegates.
+        """
+        if self._thread is not None:
+            return
         self._thread = threading.Thread(target=self._run, name="portal-tracking", daemon=True)
         self._thread.start()
 
+    def start(self, on_ready: Callable[[], None] | None = None) -> None:
+        self._on_ready = on_ready
+        self.prepare()
+        self._capture_requested.set()
+
     def stop(self) -> None:
         self._stop.set()
+        self._capture_requested.set()
         if self._thread is not None:
             self._thread.join(timeout=2.0)
         if self._cap is not None:
@@ -355,6 +373,17 @@ class HandTracker:
 
     def _run(self) -> None:
         try:
+            # This is safe to do behind the explainer: it does not touch the
+            # camera or trigger an OS permission sheet. Keeping the thread alive
+            # afterward also guarantees the task is used on its creator thread.
+            self._landmarker = self._build_landmarker()
+            self._filter = OneEuroFilter((C.NUM_HANDS, C.NUM_LANDMARKS, 3))
+            self._prepared.set()
+
+            self._capture_requested.wait()
+            if self._stop.is_set():
+                return
+
             self._cap = open_camera()
             if self._cap is None:
                 self.error = "camera"
@@ -366,9 +395,6 @@ class HandTracker:
             self.cam_h, self.cam_w = int(probe.shape[0]), int(probe.shape[1])
             self.buffers = TripleBuffer(self.cam_h, self.cam_w)
             self.camera_ready = True
-
-            self._landmarker = self._build_landmarker()
-            self._filter = OneEuroFilter((C.NUM_HANDS, C.NUM_LANDMARKS, 3))
             self.model_ready = True
             if self._on_ready is not None:
                 self._on_ready()

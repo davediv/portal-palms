@@ -56,6 +56,7 @@ class SyntheticTracker:
         self.buffers: TripleBuffer | None = TripleBuffer(self.cam_h, self.cam_w)
         self.error: str | None = None
         self.camera_ready = True
+        self.model_prepared = True
         self.model_ready = True
         self.delegate_name = "FAKE"
         self.detect_ms = 0.0

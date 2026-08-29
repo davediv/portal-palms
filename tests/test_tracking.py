@@ -9,7 +9,7 @@ import pytest
 from numpy.typing import NDArray
 
 from portal_palms import config as C
-from portal_palms.tracking import HandState, OneEuroFilter, TripleBuffer
+from portal_palms.tracking import HandState, HandTracker, OneEuroFilter, TripleBuffer
 
 F32 = np.float32
 SHAPE = (C.NUM_HANDS, C.NUM_LANDMARKS, 3)
@@ -163,6 +163,68 @@ def test_triple_buffer_survives_concurrent_writer_and_reader() -> None:
         stop.set()
         th.join(timeout=2.0)
     assert not errors
+
+
+# --------------------------------------------------------------------------- tracker startup
+
+
+def test_tracker_prepares_model_before_camera_consent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Model work starts early, but camera access waits and stays on the same worker."""
+
+    class FakeLandmarker:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeCapture:
+        released = False
+
+        def read(self) -> tuple[bool, NDArray[np.uint8]]:
+            return True, np.zeros((C.CAM_H, C.CAM_W, 3), dtype=np.uint8)
+
+        def release(self) -> None:
+            self.released = True
+
+    tracker = HandTracker("unused.task")
+    landmarker = FakeLandmarker()
+    capture = FakeCapture()
+    camera_opened = threading.Event()
+    ready = threading.Event()
+    creator_thread: list[int] = []
+    inference_thread: list[int] = []
+
+    def build_landmarker() -> FakeLandmarker:
+        creator_thread.append(threading.get_ident())
+        return landmarker
+
+    def open_fake_camera() -> FakeCapture:
+        camera_opened.set()
+        return capture
+
+    def inference_loop() -> None:
+        inference_thread.append(threading.get_ident())
+
+    monkeypatch.setattr(tracker, "_build_landmarker", build_landmarker)
+    monkeypatch.setattr("portal_palms.tracking.open_camera", open_fake_camera)
+    monkeypatch.setattr(tracker, "_loop", inference_loop)
+
+    tracker.prepare()
+    assert tracker._prepared.wait(1.0)
+    assert tracker.model_prepared
+    assert not tracker.model_ready
+    assert not camera_opened.is_set(), "prepare() must not trigger the OS permission sheet"
+
+    tracker.start(ready.set)
+    assert ready.wait(1.0)
+    assert camera_opened.is_set()
+    assert tracker.camera_ready
+    assert tracker.model_ready
+    assert creator_thread == inference_thread
+
+    tracker.stop()
+    assert capture.released
+    assert landmarker.closed
 
 
 # --------------------------------------------------------------------------- read side

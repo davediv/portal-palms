@@ -154,8 +154,10 @@ window with content 135ms  ->  shaders warm 208ms  ->  tracking live 1.7-2.8s
 
 The window is up and readable in a seventh of a second because nothing heavier
 than argparse is imported at module scope, and every expensive init step draws
-an explainer frame between the ones before and after it. MediaPipe imports on a
-side thread behind that screen.
+an explainer frame between the ones before and after it. MediaPipe imports and
+builds the hand model on the eventual inference thread behind that screen; the
+thread then waits, and the camera still does not open until the learner gives
+explicit consent.
 
 Six decisions do most of that work.
 
@@ -165,6 +167,12 @@ at display rate. Inference costs 27ms of a 33ms budget on CPU — it would eat
 every frame if it were inline. Both `VideoCapture.read` and MediaPipe release
 the GIL, so a thread genuinely overlaps with rendering, and a thread rather than
 a process avoids copying a frame through a pipe 30 times a second.
+
+That worker builds the model as soon as the first explainer frame is visible,
+then sleeps before the camera-open call. A cold model build costs about a second
+on the target M1; hiding it behind the explainer removes that second from the
+button-to-camera path without moving camera access ahead of consent. The same
+thread later runs inference, so native delegate state never crosses threads.
 
 Results cross on a **triple buffer**: three preallocated slots rotate between
 writer and reader, both critical sections are two integer assignments, and the

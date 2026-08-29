@@ -13,9 +13,7 @@ pause.
 
 from __future__ import annotations
 
-import contextlib
 import gc
-import threading
 import time
 from enum import IntEnum
 from pathlib import Path
@@ -27,7 +25,6 @@ import numpy as np
 
 from portal_palms import config as C
 from portal_palms import gestures as G
-from portal_palms import mediapipe_slim
 from portal_palms.content.words import Deck, load_words
 from portal_palms.render import shaders as S
 from portal_palms.render.gl import Fullscreen, Presenter, Targets, Window, set_uniform
@@ -95,6 +92,25 @@ class App:
         self.t_camera = 0.0
         self.t_tracking = 0.0
 
+        # Start model construction as soon as a useful frame is visible. The
+        # tracker thread waits after that work and does not open the camera until
+        # _begin_tracking() records explicit consent.
+        self.fake = bool(args.demo) or (self.offscreen and not getattr(args, "camera", False))
+        self.tracker: HandTracker | SyntheticTracker = (
+            SyntheticTracker(mirror=not args.no_mirror)
+            if self.fake
+            else HandTracker(
+                str(self.assets / "models" / "hand_landmarker.task"), mirror=not args.no_mirror
+            )
+        )
+        if isinstance(self.tracker, HandTracker):
+            self.tracker.prepare()
+        self.hands = HandState()
+        self.gesture = G.PortalGesture()
+        self.swipe = G.SwipeGesture()
+        self.tracking_started = False
+        self.first_tracked_at = 0.0
+
         self.cam_prog = ctx.program(vertex_shader=S.FULLSCREEN_VS, fragment_shader=S.CAMERA_FS)
         set_uniform(self.cam_prog, "u_cam", 0)
         self._draw_boot()
@@ -127,23 +143,6 @@ class App:
             print("words:", w)
         self.deck = Deck(words, seed=args.seed)
         self.progress = Progress.load()
-
-        # ---- tracking
-        # --offscreen normally implies synthetic hands; --camera opts back in to
-        # the real device so a headless run can check the camera composition.
-        self.fake = bool(args.demo) or (self.offscreen and not getattr(args, "camera", False))
-        self.tracker: HandTracker | SyntheticTracker = (
-            SyntheticTracker(mirror=not args.no_mirror)
-            if self.fake
-            else HandTracker(
-                str(self.assets / "models" / "hand_landmarker.task"), mirror=not args.no_mirror
-            )
-        )
-        self.hands = HandState()
-        self.gesture = G.PortalGesture()
-        self.swipe = G.SwipeGesture()
-        self.tracking_started = False
-        self.first_tracked_at = 0.0
 
         # ---- session state
         self.mirror = not args.no_mirror
@@ -455,7 +454,7 @@ class App:
         if not tracker.model_ready:
             self.mode = Mode.LOADING
             self.boot_message = (
-                "Opening the camera" if not tracker.camera_ready else ("Waking up the tracker")
+                "Opening the camera" if tracker.model_prepared else "Waking up the tracker"
             )
             return
 
@@ -754,21 +753,3 @@ class App:
         self.cam_tex.release()
         self.cam_prog.release()
         self.win.terminate()
-
-
-def prewarm_mediapipe() -> None:
-    """Pull mediapipe into the module cache on a side thread during the explainer.
-
-    `import mediapipe` costs the better part of a second and would otherwise be
-    the first thing that happens after the user consents, right when they are
-    watching for a response.
-    """
-
-    def work() -> None:
-        # Any failure here is silent on purpose: the tracker thread reports the
-        # real problem with a screen the user can act on.
-        with contextlib.suppress(Exception):
-            mediapipe_slim.install()
-            import mediapipe  # noqa: F401
-
-    threading.Thread(target=work, name="portal-prewarm", daemon=True).start()

@@ -131,10 +131,8 @@ def main() -> int:
         return check()
     _apply_size(args)
 
-    from portal_palms.app import App, prewarm_mediapipe
+    from portal_palms.app import App
 
-    if not (args.demo or args.offscreen):
-        prewarm_mediapipe()
     app = App(args)
     print(f"startup {app.startup_ms:.0f} ms to first interactive frame")
     if args.offscreen:
