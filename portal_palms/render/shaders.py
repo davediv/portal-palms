@@ -275,38 +275,54 @@ void main(){
   float sd_px = sd * u_pxscale / max(gr, 1e-4);
   float sizef = clamp(u_scale01, 0.45, 1.5);
 
-  // ---- the filament: bright, thin, and unevenly lit along its length
-  float amp = 0.22 + 1.05 * (0.5 + 0.5 * snoise(vec3(dir * 3.7, t * 1.15)));
-  // Occasional burn-through gaps, so the edge is broken rather than continuous.
-  float gap = smoothstep(0.62, 0.30, snoise(vec3(dir * 7.3 + 31.0, t * 0.85)));
-  amp *= mix(0.10, 1.0, gap);
+  // The effects below occupy narrow, coherent bands around the edge. Keeping
+  // their noise and texture work inside those bands matters: most fragments in
+  // the bounding quad are either the calm interior or empty space outside it.
+  float core = 0.0;
+  float core2 = 0.0;
+  float halo = 0.0;
+  float edge_band = 180.0 * sizef;
+  if (abs(sd_px) < edge_band) {
+    // ---- the filament: bright, thin, and unevenly lit along its length
+    float amp = 0.22 + 1.05 * (0.5 + 0.5 * snoise(vec3(dir * 3.7, t * 1.15)));
+    // Occasional burn-through gaps, so the edge is broken rather than continuous.
+    float gap = smoothstep(0.62, 0.30, snoise(vec3(dir * 7.3 + 31.0, t * 0.85)));
+    amp *= mix(0.10, 1.0, gap);
 
-  float w = (2.6 + 2.4 * u_charge) * sizef;
-  float k = sd_px / w;
-  float core = exp(-k * k) * amp;
+    float w = (2.6 + 2.4 * u_charge) * sizef;
+    float k = sd_px / w;
+    core = exp(-k * k) * amp;
 
-  // A second filament at a slightly different radius reads as another layer of
-  // ripped material behind the first, which is most of what sells "torn".
-  float tear2 = snoise(vec3(wdir * 3.3 + 11.0, t * 0.51)) * 0.11
-              + snoise(vec3(dir * 9.7 + 4.0,  t * 1.7))  * 0.035;
-  float sd2_px = (r - 1.0 - tear2 * mix(0.30, 1.0, u_open)) * u_pxscale / max(gr, 1e-4);
-  float k2 = sd2_px / (w * 1.7);
-  float core2 = exp(-k2 * k2) * amp * 0.45
-              * smoothstep(0.15, 0.75, snoise(vec3(dir * 5.1 + 60.0, t * 0.7)) * 0.5 + 0.5);
+    // A second filament at a slightly different radius reads as another layer
+    // of ripped material behind the first.
+    float tear2 = snoise(vec3(wdir * 3.3 + 11.0, t * 0.51)) * 0.11
+                + snoise(vec3(dir * 9.7 + 4.0,  t * 1.7))  * 0.035;
+    float sd2_px = (r - 1.0 - tear2 * mix(0.30, 1.0, u_open))
+                 * u_pxscale / max(gr, 1e-4);
+    float k2 = sd2_px / (w * 1.7);
+    core2 = exp(-k2 * k2) * amp * 0.45
+          * smoothstep(0.15, 0.75,
+                       snoise(vec3(dir * 5.1 + 60.0, t * 0.7)) * 0.5 + 0.5);
 
-  float halo = exp(-abs(sd_px) / (22.0 * sizef)) * (0.35 + 0.65 * amp);
+    halo = exp(-abs(sd_px) / (22.0 * sizef)) * (0.35 + 0.65 * amp);
+  }
 
-  // ---- outward sparks: thin licks of flame that only exist beyond the edge
-  float slick = smoothstep(0.10, 0.95, snoise(vec3(dir * 8.0, t * 1.5)));
-  float flick = 0.45 + 0.55 * (0.5 + 0.5 * snoise(vec3(dir * 24.0, t * 6.5)));
-  float spark_px = (8.0 + 46.0 * slick) * sizef * u_intensity;
-  float outside = smoothstep(-1.0, 3.0, sd_px);
-  float sparks = exp(-max(sd_px, 0.0) / max(spark_px, 1e-3)) * slick * flick * outside;
-  // Break the streaks up along their length so they read as licks of flame
-  // rather than as clean rays from a light source.
-  sparks *= 0.35 + 0.85 * (0.5 + 0.5 * snoise(vec3(dir * 5.0, r * 7.0 - t * 3.2)));
-  // Guarantee the glow has died before the quad ends, whatever the settings do.
-  sparks *= smoothstep(1.82, 1.25, r);
+  // ---- outward sparks: no fragment wholly inside the tear can contribute.
+  float spark_px = 1.0;
+  float sparks = 0.0;
+  if (sd_px > -1.0 && r < 1.82) {
+    float slick = smoothstep(0.10, 0.95, snoise(vec3(dir * 8.0, t * 1.5)));
+    float flick = 0.45 + 0.55 * (0.5 + 0.5 * snoise(vec3(dir * 24.0, t * 6.5)));
+    spark_px = (8.0 + 46.0 * slick) * sizef * u_intensity;
+    float outside = smoothstep(-1.0, 3.0, sd_px);
+    sparks = exp(-max(sd_px, 0.0) / max(spark_px, 1e-3)) * slick * flick * outside;
+    // Break the streaks up along their length so they read as licks of flame
+    // rather than as clean rays from a light source.
+    sparks *= 0.35 + 0.85
+            * (0.5 + 0.5 * snoise(vec3(dir * 5.0, r * 7.0 - t * 3.2)));
+    // Guarantee the glow has died before the quad ends, whatever the settings do.
+    sparks *= smoothstep(1.82, 1.25, r);
+  }
 
   // ---- inner bleed: a narrow lip of light just inside the tear. Kept tight on
   // purpose -- spread over the whole interior it becomes a green wash that
@@ -317,14 +333,16 @@ void main(){
   // spins the frame while the world behind it stays upright. Combined with the
   // camera parallax in scene.py this reads as a hole with depth behind it
   // rather than a texture stuck to the hands.
-  vec2 suv = 0.5 + vec2(d.x, d.y / u_scene_aspect) / (u_radius.x * u_zoom) + u_parallax;
-  vec3 interior = texture(u_scene, suv).rgb;
   float inside = smoothstep(1.0, -1.0, sd_px);
-
-  // Interior darkens toward the rim and picks up its colour, so the edge is not
-  // a hard cut-out and the eye reads depth rather than a pasted-on oval.
-  interior *= 0.34 + 0.66 * smoothstep(0.0, -70.0 * sizef, sd_px);
-  interior += GREEN * inner_glow * 0.16 * u_open;
+  vec3 interior = vec3(0.0);
+  if (sd_px < 1.0) {
+    vec2 suv = 0.5 + vec2(d.x, d.y / u_scene_aspect) / (u_radius.x * u_zoom) + u_parallax;
+    interior = texture(u_scene, suv).rgb;
+    // Interior darkens toward the rim and picks up its colour, so the edge is
+    // not a hard cut-out and the eye reads depth rather than a pasted-on oval.
+    interior *= 0.34 + 0.66 * smoothstep(0.0, -70.0 * sizef, sd_px);
+    interior += GREEN * inner_glow * 0.16 * u_open;
+  }
 
   // ---- rim colour: white-hot centre, green bleeding in, yellow to magenta out
   vec3 rim = vec3(0.0);
