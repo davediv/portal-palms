@@ -47,6 +47,20 @@ def set_uniform(prog: moderngl.Program, name: str, value: object) -> None:
     uniform(prog, name).value = value
 
 
+def buffer_prefix_views(data: NDArray[np.float32]) -> tuple[memoryview, ...]:
+    """Prebuild byte views for every populated row count of a fixed buffer.
+
+    ModernGL uploads the full buffer object it receives. These views keep hot
+    draws allocation-free while limiting each upload to rows that the draw can
+    actually consume.
+    """
+    if data.ndim != 2 or not data.flags.c_contiguous:
+        raise ValueError("buffer_prefix_views requires a contiguous 2D array")
+    raw = data.data.cast("B")
+    row_bytes = int(data.strides[0])
+    return tuple(raw[: n * row_bytes] for n in range(data.shape[0] + 1))
+
+
 class Window:
     """GLFW window plus a ModernGL 3.3-core context.
 

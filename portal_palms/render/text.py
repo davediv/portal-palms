@@ -21,7 +21,7 @@ from numpy.typing import NDArray
 
 from portal_palms import config as C
 from portal_palms.render import shaders as S
-from portal_palms.render.gl import set_uniform
+from portal_palms.render.gl import buffer_prefix_views, set_uniform
 
 F32 = np.float32
 Arr = NDArray[np.float32]
@@ -126,6 +126,7 @@ class TextRenderer:
         set_uniform(self.prog, "u_atlas", 0)
 
         self.data = np.zeros((C.MAX_TEXT_GLYPHS, TEXT_FLOATS), dtype=F32)
+        self._prefixes = buffer_prefix_views(self.data)
         self.buf = ctx.buffer(reserve=self.data.nbytes, dynamic=True)
         quad = np.array([0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0], dtype=F32)
         self.quad = ctx.buffer(quad.tobytes())
@@ -245,7 +246,7 @@ class TextRenderer:
     def flush(self) -> int:
         if self.n == 0:
             return 0
-        self.buf.write(self.data)
+        self.buf.write(self._prefixes[self.n])
         self.tex.use(0)
         self.vao.render(moderngl.TRIANGLE_STRIP, vertices=4, instances=self.n)
         return 1
@@ -285,8 +286,10 @@ class ShapeRenderer:
         self.quad = ctx.buffer(quad.tobytes())
 
         self.data = np.zeros((self.MAX, SHAPE_FLOATS), dtype=F32)
+        self._prefixes = buffer_prefix_views(self.data)
         self.buf = ctx.buffer(reserve=self.data.nbytes, dynamic=True)
         self.arc_data = np.zeros((8, SHAPE_FLOATS), dtype=F32)
+        self._arc_prefixes = buffer_prefix_views(self.arc_data)
         self.arc_buf = ctx.buffer(reserve=self.arc_data.nbytes, dynamic=True)
 
         layout = "4f 4f 4f/i"
@@ -364,11 +367,11 @@ class ShapeRenderer:
     def flush(self) -> int:
         calls = 0
         if self.n:
-            self.buf.write(self.data)
+            self.buf.write(self._prefixes[self.n])
             self.vao.render(moderngl.TRIANGLE_STRIP, vertices=4, instances=self.n)
             calls += 1
         if self.arc_n:
-            self.arc_buf.write(self.arc_data)
+            self.arc_buf.write(self._arc_prefixes[self.arc_n])
             self.arc_vao.render(moderngl.TRIANGLE_STRIP, vertices=4, instances=self.arc_n)
             calls += 1
         return calls

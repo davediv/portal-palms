@@ -18,6 +18,8 @@ import moderngl
 import numpy as np
 from numpy.typing import NDArray
 
+from portal_palms.render.gl import buffer_prefix_views
+
 F32 = np.float32
 Arr = NDArray[np.float32]
 
@@ -281,6 +283,7 @@ class PrimitivePool:
         # One instance buffer per kind. OpenGL 4.1 has no baseInstance, so a
         # single shared buffer could not be drawn in per-kind ranges.
         self.instances: list[Arr] = []
+        self.prefixes: list[tuple[memoryview, ...]] = []
         self.buffers: list[moderngl.Buffer] = []
         self.vaos: list[moderngl.VertexArray] = []
         for prim in Prim:
@@ -298,6 +301,7 @@ class PrimitivePool:
             )
             vao.vertices = count
             self.instances.append(data)
+            self.prefixes.append(buffer_prefix_views(data))
             self.buffers.append(buf)
             self.vaos.append(vao)
 
@@ -307,14 +311,12 @@ class PrimitivePool:
         ranges = self.ranges
         bufs = self.buffers
         vaos = self.vaos
-        data = self.instances
+        prefixes = self.prefixes
         for k in range(PRIM_COUNT):
             n = int(counts[k])
             if n <= 0:
                 continue
-            # The whole fixed-size array goes up every time. It is 9KB and a
-            # slice to the used prefix would allocate a view object per draw.
-            bufs[k].write(data[k])
+            bufs[k].write(prefixes[k][n])
             first, count = ranges[k]
             vaos[k].render(moderngl.TRIANGLES, vertices=count, first=first, instances=n)
             calls += 1

@@ -201,9 +201,11 @@ codebase.
 
 **Geometry is shared.** All 34 scenes draw from one vertex buffer of reused
 primitives with one instance buffer per primitive kind. Switching words is a
-buffer write. No geometry is built at runtime, and no framebuffer is created
-after startup — which is why opening and closing the portal a hundred times
-cannot degrade anything.
+buffer write, and prebuilt byte views limit each upload to the populated rows
+rather than the fixed-capacity reserve. The text and shape batches use the same
+scheme. No geometry is built at runtime, and no framebuffer is created after
+startup — which is why opening and closing the portal a hundred times cannot
+degrade anything.
 
 The whole app composes into one offscreen framebuffer — 1080x1920 unless
 `--size` says otherwise — that is then blitted letterboxed into the window, so

@@ -27,6 +27,7 @@ import pytest
 from portal_palms import config as C
 from portal_palms import gestures as G
 from portal_palms.content.metaphors import SCENES
+from portal_palms.render.gl import buffer_prefix_views
 from portal_palms.render.primitives import INSTANCE_FLOATS, MAX_PER_PRIM, PRIM_COUNT, Painter
 from portal_palms.render.text import NumBuf
 from portal_palms.tracking import HandState, OneEuroFilter, TripleBuffer
@@ -61,6 +62,22 @@ class _Source:
         slot.world_scale[:] = 0.145
         slot.t = t
         self.buffers.publish()
+
+
+def test_buffer_prefix_views_cover_only_live_rows_without_copying() -> None:
+    data = np.zeros((4, 3), dtype=F32)
+    prefixes = buffer_prefix_views(data)
+    assert [view.nbytes for view in prefixes] == [0, 12, 24, 36, 48]
+
+    data[0, 1] = 7.0
+    first_row = np.frombuffer(prefixes[1], dtype=F32)
+    assert first_row.tolist() == [0.0, 7.0, 0.0]
+
+
+def test_buffer_prefix_views_reject_noncontiguous_arrays() -> None:
+    data = np.zeros((4, 6), dtype=F32)[:, ::2]
+    with pytest.raises(ValueError, match="contiguous 2D"):
+        buffer_prefix_views(data)
 
 
 def _steady_state(body: object, warmup: int = 300) -> int:
