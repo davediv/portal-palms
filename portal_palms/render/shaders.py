@@ -726,6 +726,28 @@ void main(){
 """
 )
 
+TONEMAP_FS: Final = (
+    VERSION
+    + """
+in vec2 v_uv;
+out vec4 f_color;
+uniform sampler2D u_scene;
+
+void main(){
+  vec3 col = texture(u_scene, v_uv).rgb;
+
+  // Kept byte-for-byte equivalent to the bloom compositor after its add, so
+  // choosing this path changes only the work performed, never the grade.
+  col = (col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14);
+
+  float d = fract(sin(dot(v_uv * 1024.0, vec2(12.9898, 78.233))) * 43758.5453);
+  col += (d - 0.5) / 255.0;
+
+  f_color = vec4(col, 1.0);
+}
+"""
+)
+
 BLIT_FS: Final = (
     VERSION
     + PALETTE

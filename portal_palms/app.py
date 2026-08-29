@@ -217,6 +217,7 @@ class App:
         self.cam_tex.use(0)
         self.fs.draw(self.cam_prog)
         self.presenter.run_bloom(self.targets, 1.0, 0.5)
+        self.presenter.run_tonemap(self.targets)
         for chain in (self.targets.bloom_hi, self.targets.bloom_lo):
             chain.fbo_a.use()
             ctx.viewport = (0, 0, 4, 4)
@@ -540,12 +541,19 @@ class App:
         else:
             calls = self._render_live(t, now, dt, intensity)
 
-        self.metrics.draw_calls = calls + 4  # the bloom chain
         self.metrics.particles = self.particles.count if self.gesture.is_open else 0
 
-        threshold = 1.15 if not self.governor.active else 1.35
-        amount = (0.62 if not self.governor.active else 0.45) * intensity
-        self.presenter.run_bloom(self.targets, threshold, amount)
+        has_emissive = self.mode not in (Mode.EXPLAIN, Mode.LOADING, Mode.ERROR) and (
+            self.gesture.is_open or self.gesture.openness > 0.0 or self.hands.both
+        )
+        if has_emissive:
+            threshold = 1.15 if not self.governor.active else 1.35
+            amount = (0.62 if not self.governor.active else 0.45) * intensity
+            self.metrics.draw_calls = calls + self.presenter.run_bloom(
+                self.targets, threshold, amount
+            )
+        else:
+            self.metrics.draw_calls = calls + self.presenter.run_tonemap(self.targets)
 
     def _clear_main(self) -> None:
         ctx = self.ctx

@@ -280,12 +280,14 @@ class Presenter:
         self.bright = ctx.program(vertex_shader=S.FULLSCREEN_VS, fragment_shader=S.BLOOM_BRIGHT_FS)
         self.blur = ctx.program(vertex_shader=S.FULLSCREEN_VS, fragment_shader=S.BLOOM_BLUR_FS)
         self.composite = ctx.program(vertex_shader=S.FULLSCREEN_VS, fragment_shader=S.COMPOSITE_FS)
+        self.tonemap = ctx.program(vertex_shader=S.FULLSCREEN_VS, fragment_shader=S.TONEMAP_FS)
         self.blit = ctx.program(vertex_shader=S.FULLSCREEN_VS, fragment_shader=S.BLIT_FS)
 
         set_uniform(self.bright, "u_src", 0)
         set_uniform(self.blur, "u_src", 0)
         set_uniform(self.composite, "u_scene", 0)
         set_uniform(self.composite, "u_bloom", 1)
+        set_uniform(self.tonemap, "u_scene", 0)
         set_uniform(self.blit, "u_src", 0)
 
         # Composited LDR frame. Recording and the window blit both read this one.
@@ -328,6 +330,15 @@ class Presenter:
         self.fs.draw(self.composite)
         return 4
 
+    def run_tonemap(self, targets: Targets) -> int:
+        """Composite an LDR frame when no emissive content can feed bloom."""
+        self.present_fbo.use()
+        self.ctx.viewport = (0, 0, C.RENDER_W, C.RENDER_H)
+        self.ctx.disable(moderngl.BLEND | moderngl.DEPTH_TEST)
+        targets.main_tex.use(0)
+        self.fs.draw(self.tonemap)
+        return 1
+
     def to_window(self, win_w: int, win_h: int) -> None:
         """Blit the composed vertical frame into whatever shape the window is."""
         ctx = self.ctx
@@ -350,7 +361,7 @@ class Presenter:
     def release(self) -> None:
         self.present_fbo.release()
         self.present_tex.release()
-        for p in (self.bright, self.blur, self.composite, self.blit):
+        for p in (self.bright, self.blur, self.composite, self.tonemap, self.blit):
             p.release()
 
 

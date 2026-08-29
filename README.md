@@ -216,6 +216,11 @@ reflows the app rather than stretching it. That readback goes into a GL
 buffer, asynchronously, and is copied out one frame later, so the loop never
 waits on the GPU.
 
+Bloom extraction and blur run only while the portal can emit light. Explainer,
+loading and hands-free frames go straight through an equivalent tonemap/dither
+pass, avoiding three empty fullscreen passes in the app's most common waiting
+state.
+
 Low-power mode halves particles, drops bloom to eighth resolution and caps at
 30fps. It trips itself when the rolling average frame time exceeds 20ms for two
 seconds, and tells you it did.
