@@ -136,6 +136,7 @@ class App:
         self.governor = LowPowerGovernor()
         if args.low_power:
             self.governor.toggle(0.0)
+            self._apply_power()
 
         # ---- content
         words, warnings = load_words(Path(args.words) if args.words else None)
